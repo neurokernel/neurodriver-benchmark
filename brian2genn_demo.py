@@ -37,7 +37,7 @@ tau = R*C
 ar = 110.0
 ad = 1900.0
 gmax = 3*msiemens
-E_syn = -65*mV
+E_syn = -65*mV # slightly inhibitory, since Vr-E_syn<0
 
 I_max = 0.6*amp
 
