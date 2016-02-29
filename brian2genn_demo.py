@@ -7,15 +7,15 @@ import time
 import numpy as np
 from brian2 import *
 
-use_genn = True
+use_genn = False
 use_monitors = True
+codegen_target = 'numpy' # or weave
 
 if use_genn:
     import brian2genn
     set_device('genn')
 else:
-    prefs.codegen.target = 'weave'
-    #prefs.codegen.target = 'numpy'
+    prefs.codegen.target = codegen_target
 
 np.random.seed(0)
 
@@ -95,9 +95,6 @@ else:
 
 print 'total time: ', total_time
 print 'exec time:  ', exec_time
-
-import sys
-sys.exit(0)
 
 if not use_monitors:
     import sys
