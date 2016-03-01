@@ -206,6 +206,38 @@ def create_input(file_name, N_sensory, dt=1e-4, dur=1.0, start=0.3, stop=0.6, I_
                          dtype=np.float64,
                          data=I)
 
+def create_input_const(file_name, N_sensory, dt=1e-4, dur=1.0, I_max=0.6):
+    """
+    Create constant input stimulus for sensory neurons in artificial LPU.
+
+    Creates an HDF5 file containing input signals for the specified number of
+    neurons. The signals consist of a constant value.
+
+    Parameters
+    ----------
+    file_name : str
+        Name of output HDF5 file.
+    N_sensory : int
+        Number of sensory neurons.
+    dt : float
+        Time resolution of generated signal.
+    dur : float
+        Duration of generated signal.
+    I_max : float
+        Signal magnitude.
+    """
+
+    Nt = int(dur/dt)
+    t  = np.arange(0, dt*Nt, dt)
+
+    I  = np.zeros((Nt, N_sensory), dtype=np.float64)
+    I[:] = I_max
+
+    with h5py.File(file_name, 'w') as f:
+        f.create_dataset('array', (Nt, N_sensory),
+                         dtype=np.float64,
+                         data=I)
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
@@ -230,6 +262,6 @@ if __name__ == '__main__':
     stop = 0.6
     I_max = 0.6
     neu_num = args.n
-    
-    create_input(args.in_file_name, neu_num[0], dt, dur, start, stop, I_max)
+
+    create_input_const(args.in_file_name, neu_num[0], dt, dur, I_max)
     create_lpu(args.lpu_file_name, args.lpu, *neu_num)

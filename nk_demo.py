@@ -13,6 +13,7 @@ python gen_generic_lpu.py
 
 import argparse
 import itertools
+import time
 
 import networkx as nx
 
@@ -49,21 +50,46 @@ logger = setup_logger(file_name=file_name, screen=screen)
 
 man = core.Manager()
 
-(n_dict, s_dict) = LPU.lpu_parser('nk_lpu.gexf.gz')
+lpu_file = 'nk_lpu.gexf.gz'
+(n_dict, s_dict) = LPU.lpu_parser(lpu_file)
+g = nx.read_gexf(lpu_file)
+total_synapses = \
+    len([d for f, t, d in g.edges(data=True) if d['model'] == 'AlphaSynapse'])
 
 class MyLPU(LPU):
-    def run(self):
-        start = time.time()
-        super(MyLPU, self).run()
-        stop = time.time()
-        print stop-start
+    def __init__(self, dt, n_dict, s_dict, one_time_import=10, input_file=None, output_file=None,
+                 device=0, ctrl_tag=core.CTRL_TAG, gpot_tag=core.GPOT_TAG,
+                 spike_tag=core.SPIKE_TAG, rank_to_id=None, routing_table=None,
+                 id=None, debug=False, columns=['io', 'type', 'interface'],
+                 cuda_verbose=False, time_sync=False):
+        super(MyLPU, self).__init__(dt, n_dict, s_dict, input_file, output_file,
+                 device, ctrl_tag, gpot_tag,
+                 spike_tag, rank_to_id, routing_table,
+                 id, debug, columns,
+                 cuda_verbose, time_sync)
 
-man.add(MyLPU, 'nk', dt, n_dict, s_dict,
+        # Force all data to be loaded into memory in one operation:
+        self.one_time_import = one_time_import
+
+output_file = None # 'nk_output.h5'
+input_file = 'nk_input.h5'
+import h5py
+f = h5py.File(input_file)
+one_time_import = f['/array'].shape[0]
+f.close()
+
+man.add(MyLPU, 'nk', dt, n_dict, s_dict, one_time_import,
         input_file='nk_input.h5',
-        output_file='nk_output.h5', 
+        output_file=None,
         device=args.gpu_dev,
-        debug=args.debug)
+        debug=args.debug, time_sync=True)
 
+start = time.time()
 man.spawn()
 man.start(steps=args.steps)
 man.wait()
+
+total_time = time.time()-start
+exec_time = man.stop_time-man.start_time
+
+print total_synapses, total_time, exec_time

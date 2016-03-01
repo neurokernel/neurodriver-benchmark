@@ -1,15 +1,23 @@
 #!/usr/bin/env python
 
+import argparse
 import itertools
 import os
 import time
 
 import numpy as np
+import path
 from brian2 import *
 
-use_genn = False
+parser = argparse.ArgumentParser()
+parser.add_argument('-n', type=int, nargs=3, default=(30, 30, 30),
+                    help='Numbers of sensory, local, and projection neurons')
+args = parser.parse_args()
+
+use_genn = True
 use_monitors = True
 codegen_target = 'numpy' # or weave
+gen_plots = False
 
 if use_genn:
     import brian2genn
@@ -19,9 +27,7 @@ else:
 
 np.random.seed(0)
 
-N_sensory = 70
-N_local = 70
-N_proj = 70
+N_sensory, N_local, N_proj = args.n
 N = N_sensory+N_local+N_proj
 
 idx_sensory = range(0, N_sensory)
@@ -60,29 +66,33 @@ g.I_in[0:N_sensory] = I_max
 
 s = Synapses(g, pre='y += ar*ad')
 s.z = s.y = '0.0'
-tmp = [t for t in itertools.product(idx_sensory, idx_local) 
-       if np.random.rand() > 0.5]+\
+tmp = [t for t in itertools.product(idx_sensory, idx_local)
+       if np.random.rand() <= 0.5]+\
       [t for t in itertools.product(idx_sensory, idx_proj)
-       if np.random.rand() > 0.1]+\
+       if np.random.rand() <= 0.1]+\
       [t for t in itertools.product(idx_local, idx_proj)
-       if np.random.rand() > 0.1]+\
+       if np.random.rand() <= 0.1]+\
       [t for t in itertools.product(idx_proj, idx_local)
-       if np.random.rand() > 0.3]
+       if np.random.rand() <= 0.3]
 s.connect([t[0] for t in tmp],
-          [t[1] for t in tmp], p=0.5)
+          [t[1] for t in tmp])
+total_synapses = len(s)
 
 if use_monitors:
     spike_mon = SpikeMonitor(g)
     state_mon = StateMonitor(g, True, record=True)
 
 if use_genn:
-    dir_name = 'brian2_iaf_alpha_network'
+    dir_name = 'brian2genn_demo'
+    p = path.Path(dir_name)
+    if p.exists():
+        p.rmtree()
     start = time.time()
     run(dur)
     device.build(directory=dir_name,
                  compile=True,
                  run=True,
-                 use_GPU=True)
+                 use_GPU=True, with_output=False)
     total_time = time.time()-start
     with open(os.path.join(dir_name,
         'test_output/test.time'), 'r') as f:
@@ -93,10 +103,9 @@ else:
     total_time = time.time()-start
     exec_time = sum([t[1] for t in magic_network.profiling_info])
 
-print 'total time: ', total_time
-print 'exec time:  ', exec_time
+print total_synapses, total_time, exec_time
 
-if not use_monitors:
+if not use_monitors or not gen_plots:
     import sys
     sys.exit(0)
 
