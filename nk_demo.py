@@ -25,7 +25,7 @@ from neurokernel.LPU.LPU import LPU
 import neurokernel.mpi_relaunch
 
 dt = 1e-4
-dur = 1.0
+dur = 5.0
 steps = int(dur/dt)
 
 parser = argparse.ArgumentParser()

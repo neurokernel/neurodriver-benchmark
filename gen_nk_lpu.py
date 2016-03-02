@@ -257,7 +257,7 @@ if __name__ == '__main__':
     if args.s is not None:
         np.random.seed(args.s)
     dt = 1e-4
-    dur = 1.0
+    dur = 5.0
     start = 0.3
     stop = 0.6
     I_max = 0.6

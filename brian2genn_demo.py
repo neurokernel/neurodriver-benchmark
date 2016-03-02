@@ -43,12 +43,12 @@ tau = R*C
 ar = 110.0
 ad = 1900.0
 gmax = 3*msiemens
-E_syn = -65*mV # slightly inhibitory, since Vr-E_syn<0
+E_syn = -65*mV # inhibitory if Vr-E_syn<0
 
 I_max = 0.6*amp
 
 clock_dt = 0.1*ms
-dur = 1.0*second
+dur = 5.0*second
 
 defaultclock = Clock(dt=clock_dt)
 
