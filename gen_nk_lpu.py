@@ -114,7 +114,7 @@ def create_lpu_graph(lpu_name, N_sensory, N_local, N_proj):
                          ((0, 1), (0, 2), (1, 2), (2, 1))):
         src_off = sum(neu_num[0:i])
         tar_off = sum(neu_num[0:j])
-        print i, j, src_off, tar_off
+
         for src, tar in product(range(src_off, src_off+neu_num[i]),
                                 range(tar_off, tar_off+neu_num[j])):
 

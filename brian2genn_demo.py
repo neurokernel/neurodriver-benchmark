@@ -76,7 +76,6 @@ tmp = [t for t in itertools.product(idx_sensory, idx_local)
        if np.random.rand() <= 0.3]
 s.connect([t[0] for t in tmp],
           [t[1] for t in tmp])
-total_synapses = len(s)
 
 if use_monitors:
     spike_mon = SpikeMonitor(g)
@@ -103,6 +102,7 @@ else:
     total_time = time.time()-start
     exec_time = sum([t[1] for t in magic_network.profiling_info])
 
+total_synapses = len(s)
 print total_synapses, total_time, exec_time
 
 if not use_monitors or not gen_plots:
