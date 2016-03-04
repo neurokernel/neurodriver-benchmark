@@ -48,7 +48,7 @@ E_syn = -65*mV # inhibitory if Vr-E_syn<0
 I_max = 0.6*amp
 
 clock_dt = 0.1*ms
-dur = 5.0*second
+dur = 3.0*second
 
 defaultclock = Clock(dt=clock_dt)
 
@@ -103,7 +103,7 @@ else:
     exec_time = sum([t[1] for t in magic_network.profiling_info])
 
 total_synapses = len(s)
-print total_synapses, total_time, exec_time
+print N, total_synapses, total_time, exec_time
 
 if not use_monitors or not gen_plots:
     import sys

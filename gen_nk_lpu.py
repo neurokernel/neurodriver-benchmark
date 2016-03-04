@@ -243,8 +243,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('lpu_file_name', nargs='?', default='nk_lpu.gexf.gz',
                         help='LPU file name')
-    parser.add_argument('in_file_name', nargs='?', default='nk_input.h5',
-                        help='Input file name')
     parser.add_argument('-n', type=int, nargs=3, default=(30, 30, 30),
                          help='Numbers of sensory, local, and projection neurons')
     parser.add_argument('-s', type=int,
@@ -256,12 +254,7 @@ if __name__ == '__main__':
 
     if args.s is not None:
         np.random.seed(args.s)
-    dt = 1e-4
-    dur = 5.0
-    start = 0.3
-    stop = 0.6
-    I_max = 0.6
     neu_num = args.n
 
-    create_input_const(args.in_file_name, neu_num[0], dt, dur, I_max)
+#    create_input_const(args.in_file_name, neu_num[0], dt, dur, I_max)
     create_lpu(args.lpu_file_name, args.lpu, *neu_num)

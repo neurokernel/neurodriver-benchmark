@@ -7,8 +7,7 @@ Notes
 -----
 Generate input file and LPU configuration by running
 
-cd data
-python gen_generic_lpu.py
+python gen_nk_lpu.py
 """
 
 import argparse
@@ -16,6 +15,7 @@ import itertools
 import time
 
 import networkx as nx
+import pycuda.driver as drv
 
 from neurokernel.tools.logging import setup_logger
 import neurokernel.core_gpu as core
@@ -25,7 +25,7 @@ from neurokernel.LPU.LPU import LPU
 import neurokernel.mpi_relaunch
 
 dt = 1e-4
-dur = 5.0
+dur = 3.0
 steps = int(dur/dt)
 
 parser = argparse.ArgumentParser()
@@ -53,34 +53,180 @@ man = core.Manager()
 lpu_file = 'nk_lpu.gexf.gz'
 (n_dict, s_dict) = LPU.lpu_parser(lpu_file)
 g = nx.read_gexf(lpu_file)
+total_neurons =  \
+    len([d for n, d in g.nodes(data=True) if d['model'] == 'LeakyIAF'])
 total_synapses = \
     len([d for f, t, d in g.edges(data=True) if d['model'] == 'AlphaSynapse'])
 
 class MyLPU(LPU):
-    def __init__(self, dt, n_dict, s_dict, one_time_import=10, input_file=None, output_file=None,
-                 device=0, ctrl_tag=core.CTRL_TAG, gpot_tag=core.GPOT_TAG,
-                 spike_tag=core.SPIKE_TAG, rank_to_id=None, routing_table=None,
-                 id=None, debug=False, columns=['io', 'type', 'interface'],
-                 cuda_verbose=False, time_sync=False):
-        super(MyLPU, self).__init__(dt, n_dict, s_dict, input_file, output_file,
+    def __init__(self, dt, n_dict, s_dict, I_const=0.6,
+                 output_file=None, device=0, ctrl_tag=core.CTRL_TAG,
+                 gpot_tag=core.GPOT_TAG, spike_tag=core.SPIKE_TAG,
+                 rank_to_id=None, routing_table=None, id=None, debug=False,
+                 columns=['io', 'type', 'interface'], cuda_verbose=False,
+                 time_sync=False):
+        super(MyLPU, self).__init__(dt, n_dict, s_dict, None, output_file,
                  device, ctrl_tag, gpot_tag,
                  spike_tag, rank_to_id, routing_table,
                  id, debug, columns,
                  cuda_verbose, time_sync)
 
-        # Force all data to be loaded into memory in one operation:
-        self.one_time_import = one_time_import
+        self.I_const = I_const
 
-output_file = None # 'nk_output.h5'
-input_file = 'nk_input.h5'
-import h5py
-f = h5py.File(input_file)
-one_time_import = f['/array'].shape[0]
-f.close()
+        # Append outputs to list to avoid disk I/O slowdown:
+        self.output_gpot_buffer = []
+        self.output_spike_buffer = []
 
-man.add(MyLPU, 'nk', dt, n_dict, s_dict, one_time_import,
-        input_file='nk_input.h5',
-        output_file=None,
+    def _write_output(self):
+        """
+        Save neuron states or spikes to output file.
+        The order is the same as the order of the assigned ids in gexf
+        """
+
+        if self.total_num_gpot_neurons > 0:
+            # self.output_gpot_buffer.append(
+            #     self.V.get()[self.gpot_order_l].reshape((-1,)))
+            self.output_gpot_buffer.append(
+                self.V_host[self.gpot_order_l].reshape((-1,)))
+        if self.total_num_spike_neurons > 0:
+            # self.output_spike_buffer.append(
+            #     self.spike_state.get()[self.spike_order_l].reshape((-1,)))
+            self.output_spike_buffer.append(
+                self.spike_state_host[self.spike_order_l].reshape((-1,)))
+
+    def post_run(self):        
+        super(LPU, self).post_run()
+        if self.output:
+            if self.total_num_gpot_neurons > 0:
+                self.output_gpot_file.root.array.append(np.asarray(self.output_gpot_buffer))
+                self.output_gpot_file.close()
+            if self.total_num_spike_neurons > 0:
+                self.output_spike_file.root.array.append(np.asarray(self.output_spike_buffer))
+                self.output_spike_file.close()
+        if self.debug:
+            # for file in self.in_gpot_files.itervalues():
+            #     file.close()
+            if self.total_num_gpot_neurons > 0:
+                self.gpot_buffer_file.close()
+            if self.total_synapses + len(self.input_neuron_list) > 0:
+                self.synapse_state_file.close()
+
+        for neuron in self.neurons:
+            neuron.post_run()
+            if self.debug and not neuron.update_I_override:
+                neuron._BaseNeuron__post_run()
+
+        for synapse in self.synapses:
+            synapse.post_run()
+        
+    def _set_constant_input(self):
+        # Since I_ext is constant, we can just copy it into synapse_state:
+        cuda.memcpy_dtod(
+            int(int(self.synapse_state.gpudata) +
+                self.total_synapses*self.synapse_state.dtype.itemsize),
+            int(self.I_ext.gpudata),
+            self.num_input*self.synapse_state.dtype.itemsize)
+
+    def run_step(self):
+        super(LPU, self).run_step()
+
+        self._read_LPU_input()
+
+        self._set_constant_input()
+
+        if not self.first_step:
+            for i,neuron in enumerate(self.neurons):
+                neuron.update_I(self.synapse_state.gpudata)
+                neuron.eval()
+
+            self._update_buffer()
+
+            for synapse in self.synapses:
+                if hasattr(synapse, 'update_I'):
+                    synapse.update_I(self.synapse_state.gpudata)
+                synapse.update_state(self.buffer)
+
+            self.buffer.step()
+        else:
+            self.first_step = False
+
+        if self.debug:
+            if self.total_num_gpot_neurons > 0:
+                self.gpot_buffer_file.root.array.append(
+                    self.buffer.gpot_buffer.get()
+                        .reshape(1, self.gpot_delay_steps, -1))
+            
+            if self.total_synapses + len(self.input_neuron_list) > 0:
+                self.synapse_state_file.root.array.append(
+                    self.synapse_state.get().reshape(1, -1))
+
+        self._extract_output()
+
+        # Save output data to disk:
+        if self.output:
+            self._write_output()
+
+    def _initialize_gpu_ds(self):
+        """
+        Setup GPU arrays.
+        """
+
+        self.synapse_state = garray.zeros(
+            max(int(self.total_synapses) + len(self.input_neuron_list), 1),
+            np.float64)
+
+        if self.total_num_gpot_neurons>0:
+            # self.V = garray.zeros(
+            #     int(self.total_num_gpot_neurons),
+            #     np.float64)
+            self.V_host = drv.pagelocked_zeros(
+                int(self.total_num_gpot_neurons),
+                np.float64, mem_flags=drv.host_alloc_flags.DEVICEMAP)
+            self.V = garray.GPUArray(self.V_host.shape,
+                                     self.V_host.dtype,
+                                     gpudata=self.V_host.base.get_device_pointer())
+        else:
+            self.V = None
+
+        if self.total_num_spike_neurons > 0:
+            # self.spike_state = garray.zeros(int(self.total_num_spike_neurons),
+            #                                 np.int32)
+            self.spike_state_host = drv.pagelocked_zeros(int(self.total_num_spike_neurons),
+                            np.int32, mem_flags=drv.host_alloc_flags.DEVICEMAP)
+            self.spike_state = garray.GPUArray(self.spike_state_host.shape,
+                                               self.spike_state_host.dtype,
+                                               gpudata=self.spike_state_host.base.get_device_pointer())
+        self.block_extract = (256, 1, 1)
+        if len(self.out_ports_ids_gpot) > 0:
+            self.out_ports_ids_gpot_g = garray.to_gpu(self.out_ports_ids_gpot)
+            self.sel_out_gpot_ids_g = garray.to_gpu(self.sel_out_gpot_ids)
+
+            self._extract_gpot = self._extract_projection_gpot_func()
+
+        if len(self.out_ports_ids_spk) > 0:
+            self.out_ports_ids_spk_g = garray.to_gpu(
+                (self.out_ports_ids_spk).astype(np.int32))
+            self.sel_out_spk_ids_g = garray.to_gpu(self.sel_out_spk_ids)
+
+            self._extract_spike = self._extract_projection_spike_func()
+
+        if self.ports_in_gpot_mem_ind is not None:
+            inds = self.sel_in_gpot_ids
+            self.inds_gpot = garray.to_gpu(inds)
+
+        if self.ports_in_spk_mem_ind is not None:
+            inds = self.sel_in_spk_ids
+            self.inds_spike = garray.to_gpu(inds)
+
+    def _init_objects(self):
+        super(MyLPU, self)._init_objects()
+        self.I_ext = parray.to_gpu(np.full(self.num_input, self.I_const,
+                                           np.double))
+
+output_file = 'nk_output.h5'
+
+man.add(MyLPU, 'nk', dt, n_dict, s_dict, I_const=0.6,
+        output_file=output_file,
         device=args.gpu_dev,
         debug=args.debug, time_sync=True)
 
@@ -92,4 +238,4 @@ man.wait()
 total_time = time.time()-start
 exec_time = man.stop_time-man.start_time
 
-print total_synapses, total_time, exec_time
+print total_neurons, total_synapses, total_time, exec_time
