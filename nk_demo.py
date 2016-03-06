@@ -178,8 +178,27 @@ class MyLPU(LPU):
             self.output_spike_buffer.append(
                 self.spike_state_host[self.spike_order_l].reshape((-1,)))
 
+    def pre_run(self):
+
+        self.log_info('running code before body of worker %s' % self.rank)
+
+        # Start timing the main loop:
+        if self.time_sync:
+            self.intercomm.isend(['start_time', (self.rank, time.time())],
+                                 dest=0, tag=self._ctrl_tag)                
+            self.log_info('sent start time to manager')
+
+        # Initialize _out_port_dict and _in_port_dict attributes:
+        self._init_port_dicts()
+
+        # Initialize GPU transmission buffers:
+        self._init_comm_bufs()
+
+        self._initialize_gpu_ds()
+        self._init_objects()
+        self.first_step = True
+
     def post_run(self):        
-        super(LPU, self).post_run()
         if self.output:
             if self.total_num_gpot_neurons > 0:
                 self.output_gpot_file.root.array.append(np.asarray(self.output_gpot_buffer))
@@ -203,6 +222,10 @@ class MyLPU(LPU):
         for synapse in self.synapses:
             synapse.post_run()
         
+        # Run Module.post_run() after the above to include time taken to save
+        # generated output in run loop timing:
+        super(LPU, self).post_run()
+
     def _set_constant_input(self):
         # Since I_ext is constant, we can just copy it into synapse_state:
         cuda.memcpy_dtod(
@@ -350,8 +373,8 @@ man.add(MyLPU, lpu_name, dt, n_dict, s_dict, I_const=0.6,
         device=args.gpu_dev,
         debug=args.debug, time_sync=True)
 
-start = time.time()
 man.spawn()
+start = time.time()
 man.start(steps=args.steps)
 man.wait()
 
