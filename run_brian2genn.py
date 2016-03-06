@@ -1,14 +1,9 @@
 #!/usr/bin/env python
 
-import subprocess
+import sarge
 
-try:
-    from subprocess import DEVNULL
-except ImportError:
-    import os
-    DEVNULL = open(os.devnull, 'wb')
-
-for n in xrange(50, 1500, 50):
-    out = subprocess.check_output(['python', 'brian2genn_demo.py', '-n',
-                             str(n), str(n), str(n)], stderr=DEVNULL)
-    print out,
+for n in xrange(50, 2500, 50):
+    with sarge.Capture() as out:
+        sarge.run('python brian2genn_demo.py -n %s %s %s' % (n, n, n),
+                  stdout=out)
+    print out.read(),
