@@ -62,7 +62,12 @@ I_in : amp
 g = NeuronGroup(N=N, model=n_model, threshold='V>Vt',
                 reset='V=Vr')
 g.V = np.random.uniform(-0.06, -0.025, N)*volt
-g.I_in[0:N_sensory] = I_max
+
+# Explicitly assign external signal to make brian2genn demo more similar to
+# Neurodriver demo:
+g.run_regularly("""
+I_in = I_max*int(i<N_sensory)
+""")
 
 s = Synapses(g, pre='y += ar*ad')
 s.z = s.y = '0.0'
