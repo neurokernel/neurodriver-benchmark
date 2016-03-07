@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
+import re
+
 import sarge
 
 for n in xrange(50, 2500, 50):
-    with sarge.Capture() as out:
-        sarge.run('python -u brian2genn_demo.py -n %s %s %s' % (n, n, n),
-                  stdout=out)
-    print out.read(),
+    c = sarge.capture_both('python -u brian2genn_demo.py -n %s %s %s' % (n, n, n))
+    for line in c.stdout.readlines():
+        if re.match('^\d.*', line):
+            print line,
