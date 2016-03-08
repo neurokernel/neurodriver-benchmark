@@ -163,8 +163,7 @@ class MyLPU(LPU):
 
     def _write_output(self):
         """
-        Save neuron states or spikes to output file.
-        The order is the same as the order of the assigned ids in gexf
+        Save neuron states or spikes to host buffer.
         """
 
         if self.total_num_gpot_neurons > 0:
@@ -262,16 +261,16 @@ class MyLPU(LPU):
                 self.gpot_buffer_file.root.array.append(
                     self.buffer.gpot_buffer.get()
                         .reshape(1, self.gpot_delay_steps, -1))
-            
+
             if self.total_synapses + len(self.input_neuron_list) > 0:
                 self.synapse_state_file.root.array.append(
                     self.synapse_state.get().reshape(1, -1))
 
         self._extract_output()
 
-        # Save output data to disk:
-        if self.output:
-            self._write_output()
+        # Save output data to buffer regardless of whether it is to be saved to
+        # disk:
+        self._write_output()
 
     def _initialize_gpu_ds(self):
         """
@@ -366,7 +365,7 @@ total_neurons =  \
 total_synapses = \
     len([d for f, t, d in g.edges(data=True) if d['model'] == 'AlphaSynapse'])
 
-output_file = 'nk_output.h5'
+output_file = None #'nk_output.h5'
 
 man.add(MyLPU, lpu_name, dt, n_dict, s_dict, I_const=0.6,
         output_file=output_file,
