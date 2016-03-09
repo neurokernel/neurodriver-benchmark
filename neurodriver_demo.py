@@ -13,6 +13,7 @@ from neurokernel.tools.logging import setup_logger
 import neurokernel.core_gpu as core
 
 from neurokernel.LPU.LPU import LPU
+from neurokernel.LPU.utils.simpleio import *
 
 import neurokernel.mpi_relaunch
 
@@ -200,10 +201,12 @@ class MyLPU(LPU):
     def post_run(self):        
         if self.output:
             if self.total_num_gpot_neurons > 0:
-                self.output_gpot_file.root.array.append(np.asarray(self.output_gpot_buffer))
+                dataset_append(self.output_gpot_file['/array'],
+                               np.asarray(self.output_gpot_buffer))
                 self.output_gpot_file.close()
             if self.total_num_spike_neurons > 0:
-                self.output_spike_file.root.array.append(np.asarray(self.output_spike_buffer))
+                dataset_append(self.output_spike_file['/array'],
+                               np.asarray(self.output_spike_buffer))
                 self.output_spike_file.close()
         if self.debug:
             # for file in self.in_gpot_files.itervalues():
