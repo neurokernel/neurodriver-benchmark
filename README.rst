@@ -56,14 +56,17 @@ Required Software
 Usage
 -----
 1. Run ``python run_brian2genn.py > brian2genn.log`` to generate benchmarks for
-   the Brian2GeNN simulation.
-2. Run ``python run_nk.py > nk.log`` to generate benchmarks for the
-   Neurodriver simulation.
+   the Brian2GeNN simulation. Repeat several times using different output files
+   that match ``brian2genn*.log``.
+2. Run ``python run_neurodriver.py > neurodriver.log`` to generate benchmarks 
+   for the Neurodriver simulation. Repeat several times using different output 
+   files that match ``neurodriver*.log``.
 3. Run ``python plot_benchmark.py`` to generate a plot comparing the benchmarks.
 
 Notes
 -----
-It may be necessary to `patch <https://github.com/genn-team/genn/commit/e0f3480a2cb04dd04b45556d14e1b9f7ee986f00>`_ GeNN to run the benchmarks on certain GPUs.
+It may be necessary to `patch <https://github.com/genn-team/genn/commit/e0f3480a2cb04dd04b45556d14e1b9f7ee986f00>`_ 
+GeNN to run the benchmarks on certain GPUs.
 
 Authors & Acknowledgements
 --------------------------
