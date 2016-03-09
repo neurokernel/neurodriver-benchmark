@@ -357,6 +357,7 @@ logger = setup_logger(file_name=file_name, screen=screen)
 
 man = core.Manager()
 
+np.random.seed(0)
 lpu_name = 'neurodriver'
 g = create_lpu_graph(lpu_name, *args.n)
 n_dict, s_dict = LPU.graph_to_dicts(g)
