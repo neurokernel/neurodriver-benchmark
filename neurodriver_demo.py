@@ -357,7 +357,7 @@ logger = setup_logger(file_name=file_name, screen=screen)
 
 man = core.Manager()
 
-lpu_name = 'nk'
+lpu_name = 'neurodriver'
 g = create_lpu_graph(lpu_name, *args.n)
 n_dict, s_dict = LPU.graph_to_dicts(g)
 total_neurons =  \
@@ -365,7 +365,7 @@ total_neurons =  \
 total_synapses = \
     len([d for f, t, d in g.edges(data=True) if d['model'] == 'AlphaSynapse'])
 
-output_file = None #'nk_output.h5'
+output_file = None
 
 man.add(MyLPU, lpu_name, dt, n_dict, s_dict, I_const=0.6,
         output_file=output_file,
